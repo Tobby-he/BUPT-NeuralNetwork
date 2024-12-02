@@ -39,10 +39,14 @@ class CustomGRUDecoder(nn.Module):
         self.embedding = nn.Embedding(vocab_size, input_size)
         self.gru = nn.GRU(input_size, hidden_size, batch_first=True)
         self.fc = nn.Linear(hidden_size, vocab_size)
+        # 添加一个线性层来调整 encoder_output 的维度
+        self.hidden_transform = nn.Linear(input_size, hidden_size)  
 
     def forward(self, encoder_output, input_ids):
         embedded = self.embedding(input_ids)
-        output, _ = self.gru(embedded, encoder_output.unsqueeze(0))
+        # 使用线性层转换 encoder_output 的维度
+        hidden = self.hidden_transform(encoder_output).unsqueeze(0)  
+        output, _ = self.gru(embedded, hidden)
         output = self.fc(output)
         return output
 
