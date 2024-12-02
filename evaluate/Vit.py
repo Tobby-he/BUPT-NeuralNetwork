@@ -1,15 +1,53 @@
 import torch
-from torch import nn
+import torch.nn as nn
 
-# 自定义位置编码类
-class CustomPositionalEncoding(nn.Module):
-    def __init__(self, d_model, dropout=0.1, max_len=1000):
-        super(CustomPositionalEncoding, self).__init__()
-        self.dropout = nn.Dropout(p=dropout)
+class SelfAttention(nn.Module):
+    def __init__(self, d_model, num_heads):
+        super(SelfAttention, self).__init__()
+        assert d_model % num_heads == 0, "d_model must be divisible by num_heads"
+        self.d_model = d_model
+        self.num_heads = num_heads
+        self.d_k = d_model // num_heads
 
+        # 定义线性层用于计算Q、K、V
+        self.W_q = nn.Linear(d_model, d_model)
+        self.W_k = nn.Linear(d_model, d_model)
+        self.W_v = nn.Linear(d_model, d_model)
+        self.W_o = nn.Linear(d_model, d_model)
+
+    def scaled_dot_product_attention(self, Q, K, V, mask=None):
+        attn_scores = torch.matmul(Q, K.transpose(-2, -1)) / (self.d_k ** 0.5)
+        if mask is not None:
+            attn_scores = attn_scores.masked_fill(mask == 0, -1e9)
+        attn_probs = torch.softmax(attn_scores, dim=-1)
+        output = torch.matmul(attn_probs, V)
+        return output
+
+    def split_heads(self, x):
+        batch_size, seq_len, d_model = x.size()
+        return x.view(batch_size, seq_len, self.num_heads, self.d_k).transpose(1, 2)
+
+    def combine_heads(self, x):
+        batch_size, _, seq_len, d_k = x.size()
+        return x.transpose(1, 2).contiguous().view(batch_size, seq_len, self.d_model)
+
+    def forward(self, x, mask=None):
+        Q = self.split_heads(self.W_q(x))
+        K = self.split_heads(self.W_k(x))
+        V = self.split_heads(self.W_v(x))
+
+        attn_output = self.scaled_dot_product_attention(Q, K, V, mask)
+        output = self.combine_heads(attn_output)
+        output = self.W_o(output)
+        return output
+import math
+
+class PositionEncoding(nn.Module):
+    def __init__(self, d_model, max_len=5000):
+        super(PositionEncoding, self).__init__()
         pe = torch.zeros(max_len, d_model)
         position = torch.arange(0, max_len, dtype=torch.float).unsqueeze(1)
-        div_term = torch.exp(torch.arange(0, d_model, 2).float() * (-torch.log(torch.tensor(10000.0)) / d_model))
+        div_term = torch.exp(torch.arange(0, d_model, 2).float() * (-math.log(10000.0) / d_model))
         pe[:, 0::2] = torch.sin(position * div_term)
         pe[:, 1::2] = torch.cos(position * div_term)
         pe = pe.unsqueeze(0).transpose(0, 1)
@@ -17,148 +55,152 @@ class CustomPositionalEncoding(nn.Module):
 
     def forward(self, x):
         x = x + self.pe[:x.size(0), :]
-        return self.dropout(x)
+        return x
+import torch.nn.functional as F
 
-# 自定义多头注意力机制类
-class CustomMultiHeadAttention(nn.Module):
-    def __init__(self, d_model, num_heads, dropout=0.1):
-        super(CustomMultiHeadAttention, self).__init__()
-        assert d_model % num_heads == 0
-        self.d_k = d_model // num_heads
-        self.num_heads = num_heads
-        self.dropout = nn.Dropout(p=dropout)
-        self.W_q = nn.Linear(d_model, d_model)
-        self.W_k = nn.Linear(d_model, d_model)
-        self.W_v = nn.Linear(d_model, d_model)
-        self.W_o = nn.Linear(d_model, d_model)
-
-    def forward(self, query, key, value, mask=None):
-        batch_size = query.size(0)
-        Q = self.W_q(query).view(batch_size, -1, self.num_heads, self.d_k).transpose(1, 2)
-        K = self.W_k(key).view(batch_size, -1, self.num_heads, self.d_k).transpose(1, 2)
-        V = self.W_v(value).view(batch_size, -1, self.num_heads, self.d_k).transpose(1, 2)
-
-        attn_scores = torch.matmul(Q, K.transpose(-2, -1)) / torch.sqrt(torch.tensor(self.d_k, dtype=torch.float))
-        if mask is not None:
-            attn_scores = attn_scores.masked_fill(mask == 0, float('-inf'))
-        attn_probs = torch.softmax(attn_scores, dim=-1)
-        attn_probs = self.dropout(attn_probs)
-
-        output = torch.matmul(attn_probs, V).transpose(1, 2).contiguous().view(batch_size, -1, self.d_model)
-        output = self.W_o(output)
-        return output
-
-# 自定义基于注意力机制的 Transformer 解码器层类
-class CustomTransformerDecoderLayer(nn.Module):
-    def __init__(self, d_model, num_heads, dim_feedforward=2048, dropout=0.1):
-        super(CustomTransformerDecoderLayer, self).__init__()
-        self.self_attn = CustomMultiHeadAttention(d_model, num_heads, dropout)
-        self.multihead_attn = CustomMultiHeadAttention(d_model, num_heads, dropout)
-        self.linear1 = nn.Linear(d_model, dim_feedforward)
-        self.dropout = nn.Dropout(dropout)
-        self.linear2 = nn.Linear(dim_feedforward, d_model)
-        self.norm1 = nn.LayerNorm(d_model)
-        self.norm2 = nn.LayerNorm(d_model)
-        self.norm3 = nn.LayerNorm(d_model)
-        self.dropout1 = nn.Dropout(dropout)
-        self.dropout2 = nn.Dropout(dropout)
-        self.dropout3 = nn.Dropout(dropout)
-
-    def forward(self, tgt, memory, tgt_mask=None):
-        tgt2 = self.self_attn(tgt, tgt, tgt, mask=tgt_mask)[0]
-        tgt = tgt + self.dropout1(tgt2)
-        tgt = self.norm1(tgt)
-        tgt2 = self.multihead_attn(tgt, memory, memory)[0]
-        tgt = tgt + self.dropout2(tgt2)
-        tgt = self.norm2(tgt)
-        tgt2 = self.linear2(self.dropout(nn.relu(self.linear1(tgt))))
-        tgt = tgt + self.dropout3(tgt2)
-        tgt = self.norm3(tgt)
-        return tgt
-
-# 自定义基于注意力机制的 Transformer 解码器类
-class CustomTransformerDecoder(nn.Module):
-    def __init__(self, vocab_size, d_model, num_heads, num_layers, dropout=0.1):
-        super(CustomTransformerDecoder, self).__init__()
-        self.d_model = d_model
-        self.embedding = nn.Embedding(vocab_size, d_model)
-        self.positional_encoding = CustomPositionalEncoding(d_model, dropout)
-        self.layers = nn.ModuleList([
-            CustomTransformerDecoderLayer(d_model, num_heads, dropout=dropout)
-            for _ in range(num_layers)
-        ])
-        self.fc = nn.Linear(d_model, vocab_size)
-
-    def forward(self, input_ids, encoder_hidden_states, mask=None):
-        embedded = self.embedding(input_ids) * torch.sqrt(torch.tensor(self.d_model, dtype=torch.float))
-        pos_encoded = self.positional_encoding(embedded)
-        output = pos_encoded
-        for layer in self.layers:
-            output = layer(output, encoder_hidden_states, tgt_mask=mask)
-        output = self.fc(output)
-        return output
-
-# 自定义 ViT 编码器类
 class ViTEncoder(nn.Module):
-    def __init__(self, image_size, patch_size, num_classes, dim, depth, heads, mlp_dim):
+    def __init__(self, image_size, patch_size, num_classes, hidden_size, num_layers, num_heads, mlp_dim):
         super(ViTEncoder, self).__init__()
         self.image_size = image_size
         self.patch_size = patch_size
-        num_patches = (image_size // patch_size) ** 2
-        self.patch_embedding = nn.Conv2d(3, dim, kernel_size=patch_size, stride=patch_size)
-        self.positional_encoding = CustomPositionalEncoding(dim)
-        self.blocks = nn.ModuleList([
-            nn.TransformerEncoderLayer(dim, heads, mlp_dim)
-            for _ in range(depth)
-        ])
-        self.norm = nn.LayerNorm(dim)
-        self.fc = nn.Linear(dim, num_classes)
+        self.num_patches = (image_size // patch_size) ** 2
+        self.hidden_size = hidden_size
+        
+        # 修改 patch embedding 以确保输出维度正确
+        self.patch_embedding = nn.Conv2d(
+            in_channels=3,
+            out_channels=hidden_size,
+            kernel_size=patch_size,
+            stride=patch_size
+        )
+        
+        self.cls_token = nn.Parameter(torch.randn(1, 1, hidden_size))
+        self.position_embedding = nn.Parameter(torch.randn(1, self.num_patches + 1, hidden_size))
+        self.norm = nn.LayerNorm(hidden_size)
+        
+        encoder_layer = nn.TransformerEncoderLayer(
+            d_model=hidden_size,
+            nhead=num_heads,
+            dim_feedforward=mlp_dim,
+            batch_first=True
+        )
+        self.transformer_encoder = nn.TransformerEncoder(
+            encoder_layer,
+            num_layers=num_layers
+        )
 
     def forward(self, x):
-        # 将图像分割为 patches 并嵌入
-        patches = self.patch_embedding(x).flatten(2).transpose(1, 2)
+        batch_size = x.size(0)
+        
+        # Patch embedding
+        x = self.patch_embedding(x)  # [B, hidden_size, H', W']
+        
+        # 打印维度，帮助调试
+        print(f"After patch embedding: {x.shape}")
+        
+        x = x.flatten(2)  # [B, hidden_size, N]
+        print(f"After flatten: {x.shape}")
+        
+        x = x.transpose(1, 2)  # [B, N, hidden_size]
+        print(f"After transpose: {x.shape}")
+        
+        # 添加 cls token
+        cls_tokens = self.cls_token.expand(batch_size, -1, -1)
+        x = torch.cat((cls_tokens, x), dim=1)
+        print(f"After adding cls token: {x.shape}")
+        
         # 添加位置编码
-        pos_encoded_patches = self.positional_encoding(patches)
-        # 通过 Transformer 编码器层
-        for block in self.blocks:
-            pos_encoded_patches = block(pos_encoded_patches)
-        # 归一化
-        output = self.norm(pos_encoded_patches)
-        # 平均池化（可选，根据任务需求）
-        output = torch.mean(output, dim=1)
-        # 全连接层分类（可根据任务调整，这里假设用于分类任务）
+        x = x + self.position_embedding
+        
+        # Layer Norm
+        x = self.norm(x)
+        
+        # Transformer编码
+        x = self.transformer_encoder(x)
+        print(f"Final output: {x.shape}")
+        
+        return x
+
+class TransformerDecoder(nn.Module):
+    def __init__(self, vocab_size, d_model, num_heads, num_layers, max_len):
+        super(TransformerDecoder, self).__init__()
+        self.token_embedding = nn.Embedding(vocab_size, d_model)
+        self.position_encoding = PositionEncoding(d_model, max_len)
+        
+        decoder_layer = nn.TransformerDecoderLayer(
+            d_model=d_model,
+            nhead=num_heads,
+            dim_feedforward=d_model * 4,
+            batch_first=True  # 添加这个参数
+        )
+        
+        self.transformer_decoder = nn.TransformerDecoder(
+            decoder_layer,
+            num_layers=num_layers
+        )
+        
+        self.fc = nn.Linear(d_model, vocab_size)
+
+    def forward(self, tgt, memory):
+        tgt_embedding = self.token_embedding(tgt)
+        tgt_embedding = self.position_encoding(tgt_embedding)
+        
+        # 使用 transformer_decoder 而不是直接使用层
+        output = self.transformer_decoder(tgt_embedding, memory)
         output = self.fc(output)
         return output
 
-# ViT + 自定义 Transformer 解码器模型架构类
-class ViTTransformer(nn.Module):
-    def __init__(self, vocab_size, d_model, num_heads, num_layers, image_size, patch_size, num_classes, mlp_dim):
-        super(ViTTransformer, self).__init__()
-        # 初始化 ViT 编码器
-        self.vit = ViTEncoder(image_size, patch_size, num_classes, d_model, num_layers, num_heads, mlp_dim)
-        # 初始化自定义 Transformer 解码器
-        self.decoder = CustomTransformerDecoder(vocab_size, d_model, num_heads, num_layers)
+# 修改模型参数
+class ViTTransformerModel(nn.Module):
+    def __init__(self, vocab_size, image_size, patch_size, num_classes, hidden_size, 
+                 num_layers, num_heads, mlp_dim, decoder_num_layers, decoder_num_heads, decoder_max_len):
+        super(ViTTransformerModel, self).__init__()
+        
+        # 确保编码器和解码器使用相同的 hidden_size
+        self.vit_encoder = ViTEncoder(
+            image_size=image_size,
+            patch_size=patch_size,
+            num_classes=num_classes,
+            hidden_size=hidden_size,  # 这个值应该与解码器的 d_model 相同
+            num_layers=num_layers,
+            num_heads=num_heads,
+            mlp_dim=mlp_dim
+        )
+        
+        self.transformer_decoder = TransformerDecoder(
+            vocab_size=vocab_size,
+            d_model=hidden_size,  # 使用相同的 hidden_size
+            num_heads=decoder_num_heads,
+            num_layers=decoder_num_layers,
+            max_len=decoder_max_len
+        )
 
-    def forward(self, images, input_ids):
-        # 提取图像特征
-        image_features = self.vit(images)
-        # 生成文本描述
-        output = self.decoder(input_ids=input_ids, encoder_hidden_states=image_features)
-        return output.logits
+    def forward(self, images, captions):
+        image_features = self.vit_encoder(images)
+        output = self.transformer_decoder(captions, image_features)
+        return output
+# 定义模型参数
+batch_size = 2
+image_size = 224
+patch_size = 16
+num_classes = 1000
+hidden_size = 768
+num_layers = 12
+num_heads = 12
+mlp_dim = 3072
+vocab_size = 5000
+decoder_num_layers = 6
+decoder_num_heads = 8
+decoder_max_len = 20
+num_patches = (image_size // patch_size) ** 2 
+# 创建模型实例
+model = ViTTransformerModel(vocab_size, image_size, patch_size, num_classes, hidden_size, num_layers, num_heads, mlp_dim, decoder_num_layers, decoder_num_heads, decoder_max_len)
 
-# 模型架构验证示例
-if __name__ == "__main__":
-    vocab_size = 5000
-    d_model = 512
-    num_heads = 8
-    num_layers = 6
-    image_size = 224
-    patch_size = 16
-    num_classes = 1000
-    mlp_dim = 2048
-    model = ViTTransformer(vocab_size, d_model, num_heads, num_layers, image_size, patch_size, num_classes, mlp_dim)
-    # 生成随机图像数据和文本输入标识（示例数据，实际需根据数据集调整）
-    random_images = torch.randn(2, 3, 224, 224)
-    random_input_ids = torch.randint(0, vocab_size, (2, 50))
-    output_logits = model(random_images, random_input_ids)
+# 创建随机输入数据
+images = torch.randn(batch_size, 3, image_size, image_size)
+captions = torch.randint(0, vocab_size, (batch_size, decoder_max_len))
+
+# 前向传播
+output = model(images, captions)
+print(output.shape)
     print(output_logits.shape) 
