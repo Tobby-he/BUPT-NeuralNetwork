@@ -12,14 +12,14 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 # 设置参数
-image_dir = r"E:\Neuralwork\image2"
+image_dir = r"E:\Neuralwork\image2"#存放图片和caption.npy文件路径
 caption_file = os.path.join(image_dir, "captions.npy")
-save_model_dir_cnn_gru = r"E:\Neuralwork\image_captioning_project2\data\save_model_cnn_gru.pth"
-save_model_dir_vit_transformer = r"E:\Neuralwork\image_captioning_project2\data\save_model_vit_transformer.pth"
+save_model_dir_cnn_gru = r"E:\Neuralwork\image_captioning_project2\data\save_model_cnn_gru.pth"#保存模型路径
+save_model_dir_vit_transformer = r"E:\Neuralwork\image_captioning_project2\data\save_model_vit_transformer.pth"#保存模型路径
 
 # 加载图片路径和描述
 image_filenames = [os.path.join("E:\\Neuralwork\\image2\\image2", f) for f in os.listdir("E:\\Neuralwork\\image2\\image2") if f.endswith('.jpg') or f.endswith('.png')]
-captions = np.load(caption_file, allow_pickle=True)
+captions = np.load(caption_file, allow_pickle=True)#E:\\Neuralwork\\image2\\image2为存放图片路径
 # 构建词汇表
 captions = [str(cap) if isinstance(cap, np.ndarray) else cap for cap in captions]
 vocab = build_vocab(captions)
