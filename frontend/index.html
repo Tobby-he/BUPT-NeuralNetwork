@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Caption Generator</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Image Caption Generator</h1>
+        
+        <div class="upload-container">
+            <div id="drop-zone" class="drop-zone">
+                <p>upload an image</p>
+                <p class="drag-hint">...or drag and drop an image.</p>
+                <input type="file" id="file-input" accept="image/*">
+            </div>
+            <div id="image-preview" class="image-preview"></div>
+        </div>
+
+        <button id="generate-btn" class="generate-btn">convert image to text</button>
+        
+        <div id="result" class="result">
+            <p id="description"></p>
+        </div>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>
