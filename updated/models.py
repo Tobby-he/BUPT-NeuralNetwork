@@ -65,6 +65,35 @@ class ViTTransformer(nn.Module):
         # 预测下一个单词
         output = self.fc(output)
         return output
+    def generate_caption(self, image, word_to_idx, idx_to_word, max_length=50):
+        with torch.no_grad():
+            # 使用ViT提取图像特征
+            vit_output = self.vit(image)
+            image_features = vit_output.last_hidden_state[:, 0, :]  # [batch_size, 768]
+            image_features = self.feature_adapter(image_features)  # [batch_size, embed_size]
+
+            # 初始化隐藏状态（对于Transformer解码器，不需要显式的隐藏状态初始化，这里为了统一结构，设为None）
+            hidden = None
+
+            # 初始输入为起始标记
+            input_word = torch.tensor([word_to_idx['<start>']], dtype=torch.long).to(image.device)
+            caption = []
+
+            for _ in range(max_length):
+                # 嵌入输入单词
+                embedded_word = self.text_embedding(input_word).unsqueeze(1)  # [1, 1, embed_size]
+                # 通过Transformer解码器计算输出（这里与GRU不同，不需要传入隐藏状态）
+                output = self.transformer_decoder(embedded_word, image_features.unsqueeze(0), tgt_mask=None)
+                # 预测下一个单词
+                output = self.fc(output.squeeze(0))
+                _, predicted_word_idx = output.max(1)
+                predicted_word = idx_to_word[predicted_word_idx.item()]
+                if predicted_word == '<end>':
+                    break
+                caption.append(predicted_word)
+                input_word = predicted_word_idx
+
+            return''.join(caption)
 # CNN + GRU 模型架构
 class CNNGRU(nn.Module):
     def __init__(self, vocab_size, embed_size, hidden_size, num_layers, dropout=0.5):
@@ -96,3 +125,32 @@ class CNNGRU(nn.Module):
         # 预测下一个单词
         output = self.fc(output)
         return output
+    def generate_caption(self, image, word_to_idx, idx_to_word, max_length=50):
+        with torch.no_grad():
+            # 使用CNN提取图像特征
+            image_features = self.cnn(image)
+            image_features = image_features.view(image_features.size(0), -1)
+            image_features = self.cnn.fc(image_features)
+
+            # 初始化隐藏状态
+            hidden = torch.zeros(self.gru.num_layers, 1, self.gru.hidden_size).to(image.device)
+
+            # 初始输入为起始标记
+            input_word = torch.tensor([word_to_idx['<start>']], dtype=torch.long).to(image.device)
+            caption = []
+
+            for _ in range(max_length):
+                # 嵌入输入单词
+                embedded_word = self.embed(input_word).unsqueeze(1)
+                # 通过GRU计算隐藏状态
+                output, hidden = self.gru(embedded_word, hidden)
+                # 预测下一个单词
+                output = self.fc(output.squeeze(1))
+                _, predicted_word_idx = output.max(1)
+                predicted_word = idx_to_word[predicted_word_idx.item()]
+                if predicted_word == '<end>':
+                    break
+                caption.append(predicted_word)
+                input_word = predicted_word_idx
+
+            return''.join(caption)
