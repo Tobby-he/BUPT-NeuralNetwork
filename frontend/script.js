@@ -64,6 +64,9 @@ document.addEventListener('DOMContentLoaded', function() {
             alert('请先上传图片');
             return;
         }
+        const modelSelect = document.getElementById('model-select');
+        const modelParam = modelSelect.value;
+
 
         try {
             description.textContent = '正在生成描述...';
@@ -73,7 +76,7 @@ document.addEventListener('DOMContentLoaded', function() {
             formData.append('image', currentImage);
 
             // 这里替换成你的后端 API 地址
-            const response = await fetch('YOUR_API_ENDPOINT', {
+            const response = await fetch('http://localhost:5000/generate?model=' + modelParam, {
                 method: 'POST',
                 body: formData
             });
