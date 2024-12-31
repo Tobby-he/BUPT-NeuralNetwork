@@ -1,48 +1,49 @@
 document.addEventListener('DOMContentLoaded', function() {
     const dropZone = document.getElementById('drop-zone');
-    const fileInput = document.getElementById('file-input');
-    const imagePreview = document.getElementById('image-preview');
-    const generateBtn = document.getElementById('generate-btn');
+    const imageInput = document.getElementById('imageInput');
+    const imagePreview = document.getElementById('imagePreview');
     const description = document.getElementById('description');
-    let currentImage = null;
+    const errorMsg = document.getElementById('errorMessage');
+    const loadingIndicator = document.getElementById('loadingIndicator');
 
     // 处理文件上传
     function handleFile(file) {
         if (file && file.type.startsWith('image/')) {
             const reader = new FileReader();
             reader.onload = function(e) {
-                const img = document.createElement('img');
-                img.src = e.target.result;
-                imagePreview.innerHTML = '';
-                imagePreview.appendChild(img);
-                currentImage = file;
+                imagePreview.src = e.target.result;
+                imagePreview.style.display = 'block';
+                description.textContent = '';
+                errorMsg.style.display = 'none';
             };
             reader.readAsDataURL(file);
         }
     }
 
     // 点击上传区域触发文件选择
-    dropZone.addEventListener('click', () => fileInput.click());
+    dropZone.addEventListener('click', () => imageInput.click());
 
     // 文件选择处理
-    fileInput.addEventListener('change', (e) => {
-        handleFile(e.target.files[0]);
+    imageInput.addEventListener('change', (e) => {
+        if (e.target.files && e.target.files[0]) {
+            handleFile(e.target.files[0]);
+        }
     });
 
     // 拖放处理
     dropZone.addEventListener('dragover', (e) => {
         e.preventDefault();
-        dropZone.style.borderColor = '#666';
+        dropZone.classList.add('drag-over');
     });
 
     dropZone.addEventListener('dragleave', (e) => {
         e.preventDefault();
-        dropZone.style.borderColor = '#ccc';
+        dropZone.classList.remove('drag-over');
     });
 
     dropZone.addEventListener('drop', (e) => {
         e.preventDefault();
-        dropZone.style.borderColor = '#ccc';
+        dropZone.classList.remove('drag-over');
         handleFile(e.dataTransfer.files[0]);
     });
 
@@ -51,41 +52,57 @@ document.addEventListener('DOMContentLoaded', function() {
         const items = e.clipboardData.items;
         for (let item of items) {
             if (item.type.startsWith('image/')) {
-                const file = item.getAsFile();
-                handleFile(file);
+                handleFile(item.getAsFile());
                 break;
             }
         }
     });
+});
 
-    // 生成描述按钮点击事件
-    generateBtn.addEventListener('click', async () => {
-        if (!currentImage) {
-            alert('请先上传图片');
-            return;
+async function generateDescription() {
+    const imageInput = document.getElementById('imageInput');
+    const modelSelect = document.getElementById('modelSelect');
+    const description = document.getElementById('description');
+    const loadingIndicator = document.getElementById('loadingIndicator');
+    const errorMsg = document.getElementById('errorMessage');
+
+    if (!imageInput.files || !imageInput.files[0]) {
+        errorMsg.textContent = '请先选择一张图片';
+        errorMsg.style.display = 'block';
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('image', imageInput.files[0]);
+    formData.append('model', modelSelect.value);
+
+    try {
+        description.textContent = '';
+        errorMsg.style.display = 'none';
+        loadingIndicator.style.display = 'block';
+
+        const response = await fetch('http://127.0.0.1:5000/generate', {
+            method: 'POST',
+            body: formData
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
         }
-        const modelSelect = document.getElementById('model-select');
-        const modelParam = modelSelect.value;
 
-
-        try {
-            description.textContent = '正在生成描述...';
-            
-            // 创建 FormData 对象
-            const formData = new FormData();
-            formData.append('image', currentImage);
-
-            // 这里替换成你的后端 API 地址
-            const response = await fetch('http://localhost:5000/generate?model=' + modelParam, {
-                method: 'POST',
-                body: formData
-            });
-
-            const result = await response.json();
-            description.textContent = result.description;
-        } catch (error) {
-            description.textContent = '生成描述时出错，请重试';
-            console.error('Error:', error);
+        const data = await response.json();
+        
+        if (data.error) {
+            throw new Error(data.error);
         }
-    });
-}); 
+
+        description.textContent = data.description || '无法生成描述';
+    } catch (error) {
+        console.error('Error:', error);
+        errorMsg.textContent = `生成描述时出错: ${error.message}`;
+        errorMsg.style.display = 'block';
+    } finally {
+        loadingIndicator.style.display = 'none';
+    }
+}
+ 

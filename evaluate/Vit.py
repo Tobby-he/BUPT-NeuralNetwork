@@ -203,4 +203,4 @@ captions = torch.randint(0, vocab_size, (batch_size, decoder_max_len))
 # 前向传播
 output = model(images, captions)
 print(output.shape)
-    print(output_logits.shape) 
+print(output_logits.shape)

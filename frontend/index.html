@@ -1,32 +1,31 @@
 <!DOCTYPE html>
-<html lang="zh">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Image Caption Generator</title>
+    <title>图像描述生成</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
     <div class="container">
-        <h1>Image Caption Generator</h1>
-        
+        <h1>图像描述生成</h1>
         <div class="upload-container">
-            <div id="drop-zone" class="drop-zone">
-                <p>upload an image</p>
-                <p class="drag-hint">...or drag and drop an image.</p>
-                <input type="file" id="file-input" accept="image/*">
+            <div class="drop-zone" id="drop-zone">
+                <input type="file" id="imageInput" accept="image/*">
+                <p>点击或拖拽图片到此处</p>
+                <p class="drag-hint">支持拖拽、点击上传和粘贴图片</p>
             </div>
-            <div id="image-preview" class="image-preview"></div>
         </div>
-        <select id="model-select">
-            <option value="cnn_gru">CNN - GRU模型</option>
-            <option value="vit_transformer">ViT - Transformer模型</option>
-        </select>
-
-        <button id="generate-btn" class="generate-btn">convert image to text</button>
-        
-        <div id="result" class="result">
-            <p id="description"></p>
+        <div class="control-section">
+            <select id="modelSelect" class="model-select">
+                <option value="cnn_gru">CNN-GRU</option>
+                <option value="vit_transformer">ViT-Transformer</option>
+            </select>
+            <button class="generate-btn" onclick="generateDescription()">生成描述</button>
+        </div>
+        <div class="preview-section">
+            <img id="imagePreview" style="display: none;">
+            <div id="loadingIndicator" style="display: none;">正在生成描述...</div>
+            <div id="errorMessage" style="display: none;"></div>
+            <div id="description" class="result"></div>
         </div>
     </div>
     <script src="script.js"></script>

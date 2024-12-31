@@ -5,23 +5,22 @@
 }
 
 body {
-  margin: 0;
   min-height: 100vh;
   display: flex;
   justify-content: center;
   align-items: center;
   background-color: #f5f5f5;
+  font-family: Arial, sans-serif;
 }
 
 .container {
+  width: 90%;
   max-width: 800px;
-  padding: 2rem;
+  padding: 30px;
   background-color: white;
   border-radius: 10px;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
 }
-
-
 
 h1 {
   text-align: center;
@@ -39,45 +38,44 @@ h1 {
   padding: 40px;
   text-align: center;
   cursor: pointer;
-  transition: border 0.3s ease;
+  transition: all 0.3s ease;
 }
 
-.drag-hint {
-  font-size: 14px;
-  color: #666;
-  margin-top: 8px;
-} 
-
-.drop-zone:hover {
+.drop-zone:hover, .drop-zone.drag-over {
   border-color: #666;
+  background-color: #f8f8f8;
 }
 
 .drop-zone input[type="file"] {
   display: none;
 }
 
-.image-preview {
-  margin-top: 20px;
-  text-align: center;
+.drag-hint {
+  font-size: 14px;
+  color: #666;
+  margin-top: 8px;
 }
 
-.image-preview img {
-  max-width: 100%;
-  max-height: 400px;
-  border-radius: 8px;
+.control-section {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin: 20px 0;
+}
+
+.model-select {
+  padding: 10px;
+  border-radius: 5px;
+  border: 1px solid #ccc;
 }
 
 .generate-btn {
-  display: block;
-  width: 200px;
-  margin: 20px auto;
-  padding: 12px;
+  padding: 10px 20px;
   background-color: #4CAF50;
   color: white;
   border: none;
   border-radius: 5px;
   cursor: pointer;
-  font-size: 16px;
   transition: background-color 0.3s ease;
 }
 
@@ -85,10 +83,37 @@ h1 {
   background-color: #45a049;
 }
 
+.preview-section {
+  margin-top: 20px;
+}
+
+#imagePreview {
+  max-width: 100%;
+  max-height: 400px;
+  margin: 20px auto;
+  border-radius: 8px;
+  display: block;
+}
+
+#loadingIndicator {
+  text-align: center;
+  color: #666;
+  margin: 10px 0;
+}
+
+#errorMessage {
+  margin: 10px 0;
+  padding: 10px;
+  background-color: #ffebee;
+  border: 1px solid #ffcdd2;
+  border-radius: 4px;
+  color: #d32f2f;
+}
+
 .result {
   margin-top: 20px;
-  padding: 20px;
+  padding: 15px;
+  background-color: #f8f8f8;
   border-radius: 8px;
-  background-color: #f9f9f9;
-  min-height: 100px;
+  min-height: 50px;
 }
